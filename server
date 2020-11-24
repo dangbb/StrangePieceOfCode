@@ -1,0 +1,102 @@
+package sample.UDP;
+
+import javax.xml.crypto.Data;
+import java.net.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Server extends Thread {
+
+    private DatagramSocket socket;
+    private boolean running;
+    private byte[] buf = new byte[1024];
+    private String data = null;
+    private List<InetAddress> knownAddress = new ArrayList<>();
+
+    public Server() {
+        try {
+            socket = new DatagramSocket(4445);
+        } catch (Exception e) {
+            System.out.println("** UDP Setup Exception: ");
+            e.printStackTrace();
+        }
+    }
+
+    public static DatagramPacket wrapData(String message, InetAddress address, int port) {
+        byte[] buf = message.getBytes();
+        return new DatagramPacket(buf, buf.length, address, port);
+    }
+
+    public static String unpack(DatagramPacket packet) {
+        return new String(packet.getData(), 0, packet.getLength());
+    }
+
+    public void run() {
+        running = true;
+
+        try {
+            while (running) {
+                DatagramPacket packet
+                        = new DatagramPacket(buf, buf.length);
+                socket.receive(packet);
+
+                InetAddress address = packet.getAddress();
+                int port = packet.getPort();
+
+                String received
+                        = new String(packet.getData(), 0, packet.getLength());
+
+                System.out.println("RECEIVED: " + received);
+
+                buf = received.getBytes();
+                packet = new DatagramPacket(buf, buf.length, address, port);
+
+                if (received.startsWith("client")) {
+                    if (received.startsWith("client regis")) {
+                        System.out.println(packet.getAddress());
+
+                        boolean isExist = false;
+                        for (InetAddress inetAddress : knownAddress) {
+                            if (inetAddress.equals(address)) {
+                                isExist = true;
+                                break;
+                            }
+                        }
+                        if (!isExist) {
+                            knownAddress.add(address);
+                        }
+
+                    } else if (received.startsWith("client send")) {
+                        received = "server " + received.substring(12);
+                        buf = received.getBytes();
+
+                        for (InetAddress ip: knownAddress) {
+                            DatagramPacket sendPacket
+                                    = new DatagramPacket(buf, buf.length, ip, 4445);
+                            socket.send(sendPacket);
+                            socket.send(sendPacket);
+                            System.out.println("SEND TO: " + ip + " : " + received);
+                        }
+                    }
+                } else if (received.equals("end")) {
+                    running = false;
+                }
+            }
+            socket.close();
+        } catch (Exception e) {
+            System.out.println("** UDP Setup Exception: ");
+            e.printStackTrace();
+        }
+    }
+
+    public String getData() {
+        String s = data;
+        data = null;
+        return s;
+    }
+
+    public static void main(String[] args) {
+        Server s = new Server();
+        s.start();
+    }
+}
