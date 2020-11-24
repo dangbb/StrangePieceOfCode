@@ -106,5 +106,10 @@ public class Client extends Thread {
     public static void main(String[] args) {
         Client c = new Client("localhost", true);
         c.start();
+        Scanner sc = new Scanner(System.in);
+        String s;
+        while ((s = sc.nextLine()) != null) {
+            c.sendEcho(s);
+        }
     }
 }
