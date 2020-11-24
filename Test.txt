@@ -1,0 +1,110 @@
+package sample.UDP;
+
+import java.net.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Client extends Thread {
+    private DatagramSocket socket;
+    private InetAddress address;
+    private boolean isServer = true;
+    private byte[] buf = new byte[256];
+
+    private List<InetAddress> knownAddress = new ArrayList<>();
+
+    public Client(String ip, boolean server) {
+        try {
+            setServer(server);
+            if (server) {
+                socket = new DatagramSocket(4445);
+            } else {
+                socket = new DatagramSocket();
+            }
+            address = InetAddress.getByName(ip);
+        } catch (Exception e) {
+            System.out.println("Instantiate Client Exception:");
+            e.printStackTrace();
+        }
+    }
+
+    public void setServer(boolean server) {
+        isServer = server;
+    }
+
+    public boolean isServer() {
+        return isServer;
+    }
+
+    public void sendEcho(String msg) {
+        try {
+            int port = 4445;
+            if (isServer) {
+                for (InetAddress inetAddress: knownAddress) {
+                    socket.send(Server.wrapData(msg, inetAddress, port));
+                }
+            } else {
+                socket.send(Server.wrapData(msg, address, port));
+            }
+        } catch (Exception e) {
+            System.out.println("Client Sending Exception:");
+            e.printStackTrace();
+        }
+    }
+
+    public void run() {
+        boolean running = true;
+
+        System.out.println("SETUP LISTENER...");
+
+        try {
+            while (running) {
+                System.out.println("RUNNING...");
+                DatagramPacket packet = new DatagramPacket(buf, buf.length);
+                socket.receive(packet);
+                String received = new String(
+                        packet.getData(), 0, packet.getLength());
+                if (isServer) {
+                    InetAddress address = packet.getAddress();
+                    boolean isExist = false;
+                    for (InetAddress inetAddress: knownAddress) {
+                        if (inetAddress.equals(address)) {
+                            isExist = true;
+                        }
+                    }
+                    if (!isExist) {
+                        knownAddress.add(address);
+                    }
+                    if (received.startsWith("client")) {
+                        received = "server " + received.substring(7);
+                        sendEcho(received);
+                    } else if (received.startsWith("server")) {
+                        System.out.println("RECEIVED FROM SERVER: " + received);
+                    }
+                } else {
+                    if (received.startsWith("server")) {
+                        System.out.println("RECEIVED FROM SERVER: " + received);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void close() {
+        socket.close();
+    }
+
+    public DatagramSocket getSocket() {
+        return socket;
+    }
+
+    public void setSocket(DatagramSocket socket) {
+        this.socket = socket;
+    }
+
+    public static void main(String[] args) {
+        Client c = new Client("localhost", true);
+        c.start();
+    }
+}
